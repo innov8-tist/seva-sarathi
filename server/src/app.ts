@@ -7,6 +7,7 @@ import { HTTPException } from 'hono/http-exception'
 import { cors } from 'hono/cors'
 import { env } from './utils/env.parser'
 import path from 'path'
+import aiRoute from './routes/ai.route'
 import { promises as fs } from "fs";
 
 const app = new Hono()
@@ -21,7 +22,7 @@ app.use('*', requestLogger)
 
 const apiRoutes = app.basePath("/api/")
     .route('/auth/', authRoute)
-
+    .route('/ai/', aiRoute)
 
 let rootpath = path.join(__dirname, '../public')
 let indexpath = path.join(__dirname, '../public/index.html')

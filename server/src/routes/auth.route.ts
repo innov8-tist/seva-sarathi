@@ -50,7 +50,7 @@ const authRoutes = new Hono()
                     providerid: data?.user.id,
                     pfp: data.user.user_metadata?.avatar_url,
                     accessToken: data.session.access_token,
-                    refreshToken: data.session.refresh_token
+                    refreshToken: {}
                 };
 
                 const _ = await db.insert(userTable).values(dbUser as any).returning();

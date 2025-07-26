@@ -1,5 +1,5 @@
 {
-  "id": "3e78f76c-5c2b-49b1-817f-dec1f05a1c32",
+  "id": "051b051d-ad93-49e6-a1d5-a0003057d544",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -32,6 +32,18 @@
           "typeSchema": "public",
           "primaryKey": false,
           "notNull": true
+        },
+        "access_token": {
+          "name": "access_token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "refresh_token": {
+          "name": "refresh_token",
+          "type": "json",
+          "primaryKey": false,
+          "notNull": false
         },
         "p_id": {
           "name": "p_id",
