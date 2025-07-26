@@ -29,6 +29,15 @@ type ChatMessage = {
   sender: 'user' | 'ai';
   content: string;
 };
+type DocumentData = {
+  filename:string,
+  download_url:string
+}
+
+type GovntSchmes = {
+  title: string,
+  desc: string
+}
 
 const SERVER_URL = `http://localhost:8000`
 const PY_SERVER_URL = `http://localhost:8001`
@@ -46,6 +55,8 @@ export function Dashboard() {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [isRagMode, setIsRagMode] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [documents, setDocuments] = useState<DocumentData[]>([])
+  const [schemes,setSchemes] = useState<GovntSchmes[]>([])
 
   const sidebarItems = [
     { id: "form-filler" as Section, label: "Form Filler", icon: "📝" },
@@ -55,20 +66,59 @@ export function Dashboard() {
     { id: "share-docs" as Section, label: "Share Docs", icon: "📤" },
   ];
 
-  const mockDocuments = [
-    "Document 1", "Document 2", "Document 3", "Document 4",
-    "Document 5", "Document 6", "Document 7"
-  ];
-
-  const mockSchemes = [
-    "Senior Citizen Healthcare Scheme",
-    "Pension Benefit Program",
-    "Digital Literacy Initiative"
-  ];
 
   useEffect(()=>{
     setChatMessages([])
+
+    if(activeSection == "my-documents"){
+      fetchMyDocuments()
+    }else if(activeSection == "schemes"){
+      fetchSchemes()
+    }
   },[activeSection])
+
+  const fetchMyDocuments = async () =>{
+    try{
+      let response = await fetch(`${PY_SERVER_URL}/list-files`)
+      let data = await response.json()
+
+      setDocuments(data)
+    }catch(err){
+      console.error(`Error occured `,err)
+    }
+  }
+
+  const fetchSchemes = async () =>{
+    try{
+      let response = await fetch(`${PY_SERVER_URL}/government-schemes`)
+      let data = await response.json()
+      setSchemes(data?.result)
+    }catch(err){
+      console.error(`Error occured `,err)
+    }
+  }
+
+  const handleDocumentDownload = async (fileName: string) => {
+    try {
+      const response = await fetch(`${PY_SERVER_URL}/download/${fileName}`);
+      if (!response.ok) throw new Error("Network response was not ok");
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Error occurred", err);
+    }
+  };
+
   const sendAiQuerytoNodeServer = async () => {
     if (!chatMessage.trim() || isStreaming) return;
 
@@ -247,9 +297,11 @@ export function Dashboard() {
             </div>
             <Card className="flex-1 p-8 bg-card border border-border rounded-lg overflow-auto">
               <div className="grid gap-8 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 2xl:grid-cols-6 auto-rows-fr pb-12">
-                {mockDocuments.map((doc, index) => (
+                {documents.map((doc, index) => (
                   <div key={index} className="relative hover-scale">
-                    <div className="bg-secondary border border-border rounded-lg p-6 h-40 flex items-center justify-center transition-all duration-200 hover:shadow-lg">
+                    <div 
+                    onClick={()=>handleDocumentDownload(doc.filename)}
+                    className="bg-secondary border border-border rounded-lg p-6 h-40 flex items-center justify-center transition-all duration-200 hover:shadow-lg">
                       <span className="text-2xl text-muted-foreground">📄</span>
                     </div>
                     <button
@@ -265,7 +317,7 @@ export function Dashboard() {
                     >
                       <X className="w-4 h-4" />
                     </button>
-                    <p className="text-center mt-3 text-muted-foreground text-sm font-medium">{doc}</p>
+                    <p className="text-center mt-3 text-muted-foreground text-sm font-medium">{doc.filename}</p>
                   </div>
                 ))}
               </div>
@@ -378,20 +430,20 @@ export function Dashboard() {
             </div>
             <Card className="flex-1 p-8 bg-card border border-border rounded-lg overflow-auto">
               <div className="space-y-6">
-                {mockSchemes.map((scheme, index) => (
+                {schemes && schemes.map((scheme, index) => (
                   <div
                     key={index}
-                    className="flex justify-between items-center p-6 bg-secondary rounded-lg border border-border hover:shadow-lg transition-all duration-200 hover-scale"
+                    className="flex flex-col justify-between p-6 bg-secondary rounded-lg border border-border hover:shadow-lg transition-all duration-200 hover-scale"
                   >
-                    <span className="text-lg font-medium text-foreground">{scheme}</span>
+                    <span className="text-lg font-semibold text-foreground mb-2">{scheme.title}</span>
+                    <span className="text-base text-muted-foreground mb-4">{scheme.desc}</span>
                     <Button
                       variant="outline"
                       onClick={() => {
-                        // Simulate eligibility check
                         const eligible = Math.random() > 0.5;
-                        setEligibilityDialog({ open: true, scheme, eligible });
+                        setEligibilityDialog({ open: true, scheme:scheme.title, eligible });
                       }}
-                      className="text-comfortable px-8 py-3 border-primary text-primary hover:bg-primary hover:text-primary-foreground hover-scale text-lg"
+                      className="text-comfortable px-8 py-3 border-primary text-primary hover:bg-primary hover:text-primary-foreground hover-scale text-lg mt-auto"
                     >
                       Check Eligibility
                     </Button>
@@ -550,7 +602,7 @@ export function Dashboard() {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
               <DropdownMenuItem className="text-comfortable py-3">
-                👤 My Account
+                {data ? data.name?.toUpperCase() : "👤 My Account" }
               </DropdownMenuItem>
               <DropdownMenuItem
                 className="text-comfortable py-3 cursor-pointer flex items-center gap-2"
