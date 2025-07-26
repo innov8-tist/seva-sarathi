@@ -11,9 +11,9 @@ import { streamText } from "ai";
 import { aiStreamReqZodSchema } from "../zodSchemas/ai";
 
 const aiRoutes = new Hono()
-    .post('/stream', zValidator('form', aiStreamReqZodSchema), async (c) => {
+    .post('/stream', zValidator('json', aiStreamReqZodSchema), async (c) => {
         try {
-            const validated = c.req.valid('form')
+            const validated = c.req.valid('json')
 
             const result = await streamText({
                 model: google("gemini-2.0-flash"),
