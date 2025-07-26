@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { User, Menu, X, Rocket, Plus, Send, Type, Brain, Database } from "lucide-react";
+import { useEffect, useState, useRef } from "react";
+import { User, Menu, X, Rocket, Plus, Send, Type, Brain, Database, Mic, MicOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
@@ -57,6 +57,12 @@ export function Dashboard() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [documents, setDocuments] = useState<DocumentData[]>([])
   const [schemes,setSchemes] = useState<GovntSchmes[]>([])
+
+  // Audio recording states
+  const [isRecording, setIsRecording] = useState(false);
+  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
 
   const sidebarItems = [
     { id: "form-filler" as Section, label: "Form Filler", icon: "📝" },
@@ -238,6 +244,80 @@ export function Dashboard() {
     }
 
   }
+
+  // Audio recording functions
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream, {
+        mimeType: 'audio/webm'
+      });
+      
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        setAudioBlob(audioBlob);
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+    } catch (error) {
+      console.error('Error starting recording:', error);
+      alert('Could not access microphone. Please check permissions.');
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+    }
+  };
+
+  const sendAudioToServer = async () => {
+    if (!audioBlob) return;
+
+    const currentMessage = "🎤 [Audio Message]";
+    setChatMessages(prev => [...prev, { sender: 'user', content: currentMessage }]);
+
+    try {
+      const formData = new FormData();
+      formData.append('audio', audioBlob, 'recording.wav');
+
+      const response = await fetch(`${SERVER_URL}/api/ai/audio-transcribe`, {
+        method: 'POST',
+        body: formData,
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      const transcribedText = result.text || "Could not transcribe audio";
+      
+      setChatMessage(transcribedText);      
+      setAudioBlob(null);
+    } catch (error) {
+      console.error('Error sending audio:', error);
+      setChatMessages(prev => [...prev, {
+        sender: 'ai',
+        content: "Error: Failed to process audio message"
+      }]);
+      setAudioBlob(null);
+    }
+  };
+
   const renderContent = () => {
     switch (activeSection) {
 
@@ -271,6 +351,34 @@ export function Dashboard() {
                   onChange={(e) => setChatMessage(e.target.value)}
                   className="flex-1 h-[56px] text-comfortable resize-none border-border text-lg p-4"
                 />
+
+                {/* Microphone button */}
+                <Button
+                  size="lg"
+                  variant="outline"
+                  onClick={isRecording ? stopRecording : startRecording}
+                  className={`h-[56px] px-4 border-2 transition-all duration-200 hover-scale ${
+                    isRecording 
+                      ? 'bg-red-600 text-white border-red-600 hover:bg-red-700' 
+                      : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                  }`}
+                  title={isRecording ? "Stop Recording" : "Start Recording"}
+                >
+                  {isRecording ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+                </Button>
+
+                {/* Send audio button (only show when audio is recorded) */}
+                {audioBlob && (
+                  <Button
+                    size="lg"
+                    onClick={sendAudioToServer}
+                    className="bg-green-600 hover:bg-green-700 text-white px-4 h-[56px] flex items-center justify-center hover-scale"
+                    title="Send Audio"
+                  >
+                    🎤
+                  </Button>
+                )}
+
                 <Button
                   size="lg"
                   className="bg-primary hover:bg-primary-dark text-primary-foreground px-8 h-[56px] flex items-center justify-center hover-scale"
@@ -382,6 +490,33 @@ export function Dashboard() {
                   className="flex-1 h-[56px] text-comfortable resize-none border-border text-lg p-4"
                 />
 
+                {/* Microphone button */}
+                <Button
+                  size="lg"
+                  variant="outline"
+                  onClick={isRecording ? stopRecording : startRecording}
+                  className={`h-[56px] px-4 border-2 transition-all duration-200 hover-scale ${
+                    isRecording 
+                      ? 'bg-red-600 text-white border-red-600 hover:bg-red-700' 
+                      : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                  }`}
+                  title={isRecording ? "Stop Recording" : "Start Recording"}
+                >
+                  {isRecording ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+                </Button>
+
+                {/* Send audio button (only show when audio is recorded) */}
+                {audioBlob && (
+                  <Button
+                    size="lg"
+                    onClick={sendAudioToServer}
+                    className="bg-green-600 hover:bg-green-700 text-white px-4 h-[56px] flex items-center justify-center hover-scale"
+                    title="Send Audio"
+                  >
+                    🎤
+                  </Button>
+                )}
+
                 {/* Toggle button for RAG mode */}
                 <Button
                   size="lg"
@@ -479,7 +614,7 @@ export function Dashboard() {
                     key={index}
                     variant={selectedShareButtons.includes(button) ? "default" : "outline"}
                     onClick={() => {
-                      if (button === "📅 Calendar") return; // Calendar is not toggleable
+                      if (button === "📅 Calendar") return;
                       setSelectedShareButtons(prev =>
                         prev.includes(button)
                           ? prev.filter(b => b !== button)
@@ -528,6 +663,34 @@ export function Dashboard() {
                   onChange={(e) => setChatMessage(e.target.value)}
                   className="flex-1 h-[56px] text-comfortable resize-none border-border text-lg p-4"
                 />
+
+                {/* Microphone button */}
+                <Button
+                  size="lg"
+                  variant="outline"
+                  onClick={isRecording ? stopRecording : startRecording}
+                  className={`h-[56px] px-4 border-2 transition-all duration-200 hover-scale ${
+                    isRecording 
+                      ? 'bg-red-600 text-white border-red-600 hover:bg-red-700' 
+                      : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                  }`}
+                  title={isRecording ? "Stop Recording" : "Start Recording"}
+                >
+                  {isRecording ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+                </Button>
+
+                {/* Send audio button (only show when audio is recorded) */}
+                {audioBlob && (
+                  <Button
+                    size="lg"
+                    onClick={sendAudioToServer}
+                    className="bg-green-600 hover:bg-green-700 text-white px-4 h-[56px] flex items-center justify-center hover-scale"
+                    title="Send Audio"
+                  >
+                    🎤
+                  </Button>
+                )}
+
                 <Button
                 onClick={async ()=>{
                   return await performShareDoc()
