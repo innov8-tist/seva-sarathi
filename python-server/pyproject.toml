@@ -18,6 +18,7 @@ dependencies = [
     "langchain-core>=0.3.72",
     "langchain-google-genai>=2.1.8",
     "langchain-groq>=0.3.6",
+    "langchain-perplexity>=0.1.2",
     "mcp[cli]>=1.9.1",
     "pillow>=11.3.0",
     "psycopg2-binary>=2.9.10",

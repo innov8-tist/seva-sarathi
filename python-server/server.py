@@ -11,7 +11,7 @@ from services.db import DBDATAS,DBDATAS2
 from services.mcps import Run_Agent
 import json
 from services.drive import Download_Function
-from services.government import SchemsShowing
+from services.government import SchemsShowing,SchemsShowing2
 user_id=None
 app = FastAPI()
 
@@ -123,6 +123,11 @@ def download_file(filename: str):
 @app.get("/government-schemes")
 def SchemsShow():
     res=SchemsShowing()
+    return {"result":res}
+
+@app.get("/government-schemes-single")
+def SchemeShow2(query:str):
+    res=SchemsShowing2(query)
     return {"result":res}
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8001)
