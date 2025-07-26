@@ -14,7 +14,8 @@ const envSchema = z.object({
     CLIENT_URL:z.string(),
     SUPABASE_SERVICE_ROLE:z.string(),
     SUPABASE_URL:z.string(),
-    SUPABASE_ANON_KEY:z.string({message:"SUPABASE_ANON_KEY is missing in env"})
+    SUPABASE_ANON_KEY:z.string({message:"SUPABASE_ANON_KEY is missing in env"}),
+    GOOGLE_GENERATIVE_AI_API_KEY: z.string()
 })
 
 declare global{
