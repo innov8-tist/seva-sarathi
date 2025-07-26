@@ -2,7 +2,6 @@
 
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { Link } from '@tanstack/react-router'
-import { Github } from "lucide-react"
 import { toast } from "sonner"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -11,6 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
+import { api } from '@/lib/api'
 import { ThemeProvider } from "@/components/theme-provider"
 
 export const Route = createFileRoute('/login')({
@@ -35,6 +35,45 @@ export default function RouteComponent() {
         },
     })
 
+    async function onSubmit(data: FormData) {
+        const response = await api.auth['sign-in'].$post({
+            json: {
+                email: data.email,
+                password: data.password
+            },
+        })
+        if(!response.ok){
+            toast.error("Invalid credentials")
+            return
+        }
+        const res = await response.json()
+        navigate({to:"/dashboard"})
+        toast.success("Logged in successfully")
+    }
+
+
+    async function signInWithGoogle() {
+        try {
+            const response = await api.auth['sign-in-with-provider'].$post({
+                json: {
+                    provider: 'google'
+                },
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                console.log(data)
+                if (data.forwardingTo) {
+                    window.location.href = data.forwardingTo;
+                }
+            } else {
+                console.error('Failed to initiate Google sign in');
+            }
+        } catch (error) {
+            console.error('Error during Google sign in:', error);
+        }
+    }
+
     return (
         <ThemeProvider defaultTheme="system" storageKey="vite-ui-theme">
             <div className="flex items-center justify-center min-h-screen">
@@ -45,7 +84,7 @@ export default function RouteComponent() {
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <div className="space-y-3">
-                        <Button variant="outline" className="w-full" onClick={() => { }}>
+                        <Button variant="outline" className="w-full" onClick={() => { signInWithGoogle() }}>
                             <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">
                                 <path
                                     d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
@@ -65,12 +104,6 @@ export default function RouteComponent() {
                                 />
                             </svg>
                             Continue with Google
-                        </Button>
-                        <Button variant="outline" className="w-full" 
-                            //onClick={() => { }}
-                        >
-                            <Github className="mr-2 h-4 w-4" />
-                            Continue with GitHub
                         </Button>
                         <Button variant="outline" className="w-full" onClick={() => { }}>
                             <svg
@@ -100,9 +133,7 @@ export default function RouteComponent() {
                         </div>
                     </div>
                     <Form {...form}>
-                        <form
-                            //onSubmit={form.handleSubmit(onSubmit)}
-                        className="space-y-4">
+                        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                             <FormField
                                 control={form.control}
                                 name="email"
