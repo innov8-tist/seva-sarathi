@@ -215,7 +215,7 @@ export function Dashboard() {
     const currentMessage = chatMessage;
     setChatMessages(prev => [...prev, { sender: 'user', content: currentMessage }]);
     setChatMessage("");
-    const server_uri = "http://34.235.132.37:8000"
+    const server_uri = "http://34.235.132.37:8001"
     try {
       console.log(data?.id)
       const response = await fetch(`${server_uri}/mycollections/`, {
@@ -237,10 +237,10 @@ export function Dashboard() {
       const resp = await response.json();
       setChatMessages(prev => [...prev, {
         sender: 'ai',
-        content: resp.result || "No response received"
+        content: resp.result?.result || "No response received"
       }]);
     } catch (err) {
-
+      console.log(err)
     }
 
   }
