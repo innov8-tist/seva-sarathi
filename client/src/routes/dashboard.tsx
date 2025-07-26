@@ -56,46 +56,70 @@ export function Dashboard() {
   const renderContent = () => {
     switch (activeSection) {
       case "form-filler":
+        // Unique template values
+        const templates = [
+          { id: 1, label: "h1", value: "Passport Application" },
+          { id: 2, label: "h1", value: "Train Ticket Booking" },
+          { id: 3, label: "h1", value: "Pension Form" },
+        ];
+
+        // Handler for template click
+        const handleTemplateClick = (value: string) => {
+          setChatMessage(value);
+        };
+
+        // Handler for send button
+        const handleSend = () => {
+          // Run your code here (e.g., send chatMessage to backend)
+          console.log("Submitted:", chatMessage);
+          // Optionally clear input: setChatMessage("");
+        };
+
         return (
           <div className="h-full flex flex-col animate-fade-in">
             <div className="flex justify-between items-center mb-8">
-              <h2 className="text-large-ui text-foreground">Form Filler</h2>
-              <Button className="bg-primary hover:bg-primary-dark text-primary-foreground flex items-center gap-2 px-6 py-3 text-comfortable hover-scale">
-                <Rocket className="w-5 h-5" />
-                Launch
-              </Button>
+              <h2 className="text-3xl font-bold text-foreground">Form Filler</h2>
             </div>
-            
-<Card className="flex-1 p-8 bg-card border border-border rounded-lg flex flex-col min-h-[500px]">
-  {/* Vertically centered content */}
-  <div className="flex-1 flex flex-col justify-center items-center">
-    <h3 className="text-3xl font-semibold text-foreground mb-4">
-      What service do you need help with?
-    </h3>
-    <p className="text-muted-foreground text-xl text-center">
-      Just type your request below and let us handle the complicated forms!
-    </p>
-  </div>
-
-  {/* Chat input (textarea + send button) docked at the bottom */}
-  <div className="flex w-full gap-4 items-center">
-    <Textarea
-      placeholder="Type here... e.g., 'help me get a passport' or 'help me book a ticket from Delhi to Mumbai'"
-      value={chatMessage}
-      onChange={(e) => setChatMessage(e.target.value)}
-      className="flex-1 h-[56px] text-comfortable resize-none border-border text-lg p-4"
-    />
-    <Button
-      size="lg"
-      className="bg-primary hover:bg-primary-dark text-primary-foreground px-8 h-[56px] flex items-center justify-center hover-scale"
-    >
-      <Send className="w-6 h-6" />
-    </Button>
-  </div>
-</Card>
-
-
-          
+            <div className="flex flex-1 gap-8">
+              {/* Sidebar (already handled in main layout) */}
+              {/* Main Content */}
+              <div className="flex-1 flex flex-col gap-8">
+                {/* Large Textarea with Send Button */}
+                <Card className="p-8 bg-card border border-border rounded-lg flex flex-col min-h-[220px] justify-center">
+                  <div className="relative w-full">
+                    <Textarea
+                      placeholder="Type here... e.g., 'help me get a passport' or 'help me book a ticket from Delhi to Mumbai'"
+                      value={chatMessage}
+                      onChange={(e) => setChatMessage(e.target.value)}
+                      className="w-full h-[150px] text-comfortable resize-none border-border text-lg p-4 bg-background pr-16"
+                    />
+                    <Button
+                      size="lg"
+                      className="absolute right-4 bottom-4 bg-primary hover:bg-primary-dark text-primary-foreground px-6 h-[44px] flex items-center justify-center hover-scale"
+                      onClick={handleSend}
+                    >
+                      <Send className="w-5 h-5" />
+                    </Button>
+                  </div>
+                </Card>
+                {/* Template Section */}
+                <div>
+                  <h3 className="text-xl font-semibold text-foreground mb-4">Template</h3>
+                  <div className="flex gap-12">
+                    {templates.map((tpl) => (
+                      <Card
+                        key={tpl.id}
+                        className="w-64 h-64 flex flex-col items-center justify-center bg-card border border-border rounded-lg cursor-pointer transition hover:shadow-lg"
+                        onClick={() => handleTemplateClick(tpl.value)}
+                      >
+                        <div className="w-48 h-48 bg-secondary rounded mb-2" />
+                        <div className="text-lg font-bold text-foreground">{tpl.label}</div>
+                      </Card>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         );    
 
