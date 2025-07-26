@@ -117,5 +117,5 @@ async def Run_Agent(query:str,arr:list):
             if Flag==True and os.path.exists(creds_path):
                 Flag=False
                 os.remove(creds_path)
-            response = await agent.aprint_response(query)
-    return {"result":"done"}
+            response = await agent.arun(query)
+    return {"result":str(response.content)}
