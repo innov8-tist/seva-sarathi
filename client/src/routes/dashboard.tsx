@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { User, Menu, X, Rocket, Plus, Send, Type, Brain, Database } from "lucide-react";
+import { useEffect, useState, useRef } from "react";
+import { User, Menu, X, Rocket, Plus, Send, Type, Brain, Database, Mic, MicOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
@@ -29,6 +29,15 @@ type ChatMessage = {
   sender: 'user' | 'ai';
   content: string;
 };
+type DocumentData = {
+  filename:string,
+  download_url:string
+}
+
+type GovntSchmes = {
+  title: string,
+  desc: string
+}
 
 const SERVER_URL = `http://localhost:8000`
 const PY_SERVER_URL = `http://localhost:8001`
@@ -46,6 +55,14 @@ export function Dashboard() {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [isRagMode, setIsRagMode] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [documents, setDocuments] = useState<DocumentData[]>([])
+  const [schemes,setSchemes] = useState<GovntSchmes[]>([])
+
+  // Audio recording states
+  const [isRecording, setIsRecording] = useState(false);
+  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
 
   const sidebarItems = [
     { id: "form-filler" as Section, label: "Form Filler", icon: "📝" },
@@ -55,20 +72,59 @@ export function Dashboard() {
     { id: "share-docs" as Section, label: "Share Docs", icon: "📤" },
   ];
 
-  const mockDocuments = [
-    "Document 1", "Document 2", "Document 3", "Document 4",
-    "Document 5", "Document 6", "Document 7"
-  ];
-
-  const mockSchemes = [
-    "Senior Citizen Healthcare Scheme",
-    "Pension Benefit Program",
-    "Digital Literacy Initiative"
-  ];
 
   useEffect(()=>{
     setChatMessages([])
+
+    if(activeSection == "my-documents"){
+      fetchMyDocuments()
+    }else if(activeSection == "schemes"){
+      fetchSchemes()
+    }
   },[activeSection])
+
+  const fetchMyDocuments = async () =>{
+    try{
+      let response = await fetch(`${PY_SERVER_URL}/list-files`)
+      let data = await response.json()
+
+      setDocuments(data)
+    }catch(err){
+      console.error(`Error occured `,err)
+    }
+  }
+
+  const fetchSchemes = async () =>{
+    try{
+      let response = await fetch(`${PY_SERVER_URL}/government-schemes`)
+      let data = await response.json()
+      setSchemes(data?.result)
+    }catch(err){
+      console.error(`Error occured `,err)
+    }
+  }
+
+  const handleDocumentDownload = async (fileName: string) => {
+    try {
+      const response = await fetch(`${PY_SERVER_URL}/download/${fileName}`);
+      if (!response.ok) throw new Error("Network response was not ok");
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Error occurred", err);
+    }
+  };
+
   const sendAiQuerytoNodeServer = async () => {
     if (!chatMessage.trim() || isStreaming) return;
 
@@ -159,7 +215,7 @@ export function Dashboard() {
     const currentMessage = chatMessage;
     setChatMessages(prev => [...prev, { sender: 'user', content: currentMessage }]);
     setChatMessage("");
-    const server_uri = "http://34.235.132.37:8000"
+    const server_uri = "http://34.235.132.37:8001"
     try {
       console.log(data?.id)
       const response = await fetch(`${server_uri}/mycollections/`, {
@@ -181,57 +237,155 @@ export function Dashboard() {
       const resp = await response.json();
       setChatMessages(prev => [...prev, {
         sender: 'ai',
-        content: resp.result || "No response received"
+        content: resp.result?.result || "No response received"
       }]);
     } catch (err) {
-
+      console.log(err)
     }
 
   }
+
+  // Audio recording functions
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream, {
+        mimeType: 'audio/webm'
+      });
+      
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        setAudioBlob(audioBlob);
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+    } catch (error) {
+      console.error('Error starting recording:', error);
+      alert('Could not access microphone. Please check permissions.');
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+    }
+  };
+
+  const sendAudioToServer = async () => {
+    if (!audioBlob) return;
+
+    const currentMessage = "🎤 [Audio Message]";
+    setChatMessages(prev => [...prev, { sender: 'user', content: currentMessage }]);
+
+    try {
+      const formData = new FormData();
+      formData.append('audio', audioBlob, 'recording.wav');
+
+      const response = await fetch(`${SERVER_URL}/api/ai/audio-transcribe`, {
+        method: 'POST',
+        body: formData,
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      const transcribedText = result.text || "Could not transcribe audio";
+      
+      setChatMessage(transcribedText);      
+      setAudioBlob(null);
+    } catch (error) {
+      console.error('Error sending audio:', error);
+      setChatMessages(prev => [...prev, {
+        sender: 'ai',
+        content: "Error: Failed to process audio message"
+      }]);
+      setAudioBlob(null);
+    }
+  };
+
   const renderContent = () => {
     switch (activeSection) {
 
       case "form-filler":
+        // Unique template values
+        const templates = [
+          { id: 1, label: "h1", value: "Passport Application" },
+          { id: 2, label: "h1", value: "Train Ticket Booking" },
+          { id: 3, label: "h1", value: "Pension Form" },
+        ];
+
+        // Handler for template click
+        const handleTemplateClick = (value: string) => {
+          setChatMessage(value);
+        };
+
+        // Handler for send button
+        const handleSend = () => {
+          // Run your code here (e.g., send chatMessage to backend)
+          console.log("Submitted:", chatMessage);
+          // Optionally clear input: setChatMessage("");
+        };
+
         return (
           <div className="h-full flex flex-col animate-fade-in">
             <div className="flex justify-between items-center mb-8">
-              <h2 className="text-large-ui text-foreground">Form Filler</h2>
-              <Button className="bg-primary hover:bg-primary-dark text-primary-foreground flex items-center gap-2 px-6 py-3 text-comfortable hover-scale">
-                <Rocket className="w-5 h-5" />
-                Launch
-              </Button>
+              <h2 className="text-3xl font-bold text-foreground">Form Filler</h2>
             </div>
-
-            <Card className="flex-1 p-8 bg-card border border-border rounded-lg flex flex-col min-h-[500px]">
-              {/* Vertically centered content */}
-              <div className="flex-1 flex flex-col justify-center items-center">
-                <h3 className="text-3xl font-semibold text-foreground mb-4">
-                  What service do you need help with?
-                </h3>
-                <p className="text-muted-foreground text-xl text-center">
-                  Just type your request below and let us handle the complicated forms!
-                </p>
+            <div className="flex flex-1 gap-8">
+              {/* Sidebar (already handled in main layout) */}
+              {/* Main Content */}
+              <div className="flex-1 flex flex-col gap-8">
+                {/* Large Textarea with Send Button */}
+                <Card className="p-8 bg-card border border-border rounded-lg flex flex-col min-h-[220px] justify-center">
+                  <div className="relative w-full">
+                    <Textarea
+                      placeholder="Type here... e.g., 'help me get a passport' or 'help me book a ticket from Delhi to Mumbai'"
+                      value={chatMessage}
+                      onChange={(e) => setChatMessage(e.target.value)}
+                      className="w-full h-[150px] text-comfortable resize-none border-border text-lg p-4 bg-background pr-16"
+                    />
+                    <Button
+                      size="lg"
+                      className="absolute right-4 bottom-4 bg-primary hover:bg-primary-dark text-primary-foreground px-6 h-[44px] flex items-center justify-center hover-scale"
+                      onClick={handleSend}
+                    >
+                      <Send className="w-5 h-5" />
+                    </Button>
+                  </div>
+                </Card>
+                {/* Template Section */}
+                <div>
+                  <h3 className="text-xl font-semibold text-foreground mb-4">Template</h3>
+                  <div className="flex gap-12">
+                    {templates.map((tpl) => (
+                      <Card
+                        key={tpl.id}
+                        className="w-64 h-64 flex flex-col items-center justify-center bg-card border border-border rounded-lg cursor-pointer transition hover:shadow-lg"
+                        onClick={() => handleTemplateClick(tpl.value)}
+                      >
+                        <div className="w-48 h-48 bg-secondary rounded mb-2" />
+                        <div className="text-lg font-bold text-foreground">{tpl.label}</div>
+                      </Card>
+                    ))}
+                  </div>
+                </div>
               </div>
-
-              {/* Chat input (textarea + send button) docked at the bottom */}
-              <div className="flex w-full gap-4 items-center">
-                <Textarea
-                  placeholder="Type here... e.g., 'help me get a passport' or 'help me book a ticket from Delhi to Mumbai'"
-                  value={chatMessage}
-                  onChange={(e) => setChatMessage(e.target.value)}
-                  className="flex-1 h-[56px] text-comfortable resize-none border-border text-lg p-4"
-                />
-                <Button
-                  size="lg"
-                  className="bg-primary hover:bg-primary-dark text-primary-foreground px-8 h-[56px] flex items-center justify-center hover-scale"
-                >
-                  <Send className="w-6 h-6" />
-                </Button>
-              </div>
-            </Card>
-
-
-
+            </div>
           </div>
         );
 
@@ -247,9 +401,11 @@ export function Dashboard() {
             </div>
             <Card className="flex-1 p-8 bg-card border border-border rounded-lg overflow-auto">
               <div className="grid gap-8 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 2xl:grid-cols-6 auto-rows-fr pb-12">
-                {mockDocuments.map((doc, index) => (
+                {documents.map((doc, index) => (
                   <div key={index} className="relative hover-scale">
-                    <div className="bg-secondary border border-border rounded-lg p-6 h-40 flex items-center justify-center transition-all duration-200 hover:shadow-lg">
+                    <div 
+                    onClick={()=>handleDocumentDownload(doc.filename)}
+                    className="bg-secondary border border-border rounded-lg p-6 h-40 flex items-center justify-center transition-all duration-200 hover:shadow-lg">
                       <span className="text-2xl text-muted-foreground">📄</span>
                     </div>
                     <button
@@ -265,7 +421,7 @@ export function Dashboard() {
                     >
                       <X className="w-4 h-4" />
                     </button>
-                    <p className="text-center mt-3 text-muted-foreground text-sm font-medium">{doc}</p>
+                    <p className="text-center mt-3 text-muted-foreground text-sm font-medium">{doc.filename}</p>
                   </div>
                 ))}
               </div>
@@ -330,6 +486,33 @@ export function Dashboard() {
                   className="flex-1 h-[56px] text-comfortable resize-none border-border text-lg p-4"
                 />
 
+                {/* Microphone button */}
+                <Button
+                  size="lg"
+                  variant="outline"
+                  onClick={isRecording ? stopRecording : startRecording}
+                  className={`h-[56px] px-4 border-2 transition-all duration-200 hover-scale ${
+                    isRecording 
+                      ? 'bg-red-600 text-white border-red-600 hover:bg-red-700' 
+                      : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                  }`}
+                  title={isRecording ? "Stop Recording" : "Start Recording"}
+                >
+                  {isRecording ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+                </Button>
+
+                {/* Send audio button (only show when audio is recorded) */}
+                {audioBlob && (
+                  <Button
+                    size="lg"
+                    onClick={sendAudioToServer}
+                    className="bg-green-600 hover:bg-green-700 text-white px-4 h-[56px] flex items-center justify-center hover-scale"
+                    title="Send Audio"
+                  >
+                    🎤
+                  </Button>
+                )}
+
                 {/* Toggle button for RAG mode */}
                 <Button
                   size="lg"
@@ -378,20 +561,20 @@ export function Dashboard() {
             </div>
             <Card className="flex-1 p-8 bg-card border border-border rounded-lg overflow-auto">
               <div className="space-y-6">
-                {mockSchemes.map((scheme, index) => (
+                {schemes && schemes.map((scheme, index) => (
                   <div
                     key={index}
-                    className="flex justify-between items-center p-6 bg-secondary rounded-lg border border-border hover:shadow-lg transition-all duration-200 hover-scale"
+                    className="flex flex-col justify-between p-6 bg-secondary rounded-lg border border-border hover:shadow-lg transition-all duration-200 hover-scale"
                   >
-                    <span className="text-lg font-medium text-foreground">{scheme}</span>
+                    <span className="text-lg font-semibold text-foreground mb-2">{scheme.title}</span>
+                    <span className="text-base text-muted-foreground mb-4">{scheme.desc}</span>
                     <Button
                       variant="outline"
                       onClick={() => {
-                        // Simulate eligibility check
                         const eligible = Math.random() > 0.5;
-                        setEligibilityDialog({ open: true, scheme, eligible });
+                        setEligibilityDialog({ open: true, scheme:scheme.title, eligible });
                       }}
-                      className="text-comfortable px-8 py-3 border-primary text-primary hover:bg-primary hover:text-primary-foreground hover-scale text-lg"
+                      className="text-comfortable px-8 py-3 border-primary text-primary hover:bg-primary hover:text-primary-foreground hover-scale text-lg mt-auto"
                     >
                       Check Eligibility
                     </Button>
@@ -427,7 +610,7 @@ export function Dashboard() {
                     key={index}
                     variant={selectedShareButtons.includes(button) ? "default" : "outline"}
                     onClick={() => {
-                      if (button === "📅 Calendar") return; // Calendar is not toggleable
+                      if (button === "📅 Calendar") return;
                       setSelectedShareButtons(prev =>
                         prev.includes(button)
                           ? prev.filter(b => b !== button)
@@ -476,6 +659,34 @@ export function Dashboard() {
                   onChange={(e) => setChatMessage(e.target.value)}
                   className="flex-1 h-[56px] text-comfortable resize-none border-border text-lg p-4"
                 />
+
+                {/* Microphone button */}
+                <Button
+                  size="lg"
+                  variant="outline"
+                  onClick={isRecording ? stopRecording : startRecording}
+                  className={`h-[56px] px-4 border-2 transition-all duration-200 hover-scale ${
+                    isRecording 
+                      ? 'bg-red-600 text-white border-red-600 hover:bg-red-700' 
+                      : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                  }`}
+                  title={isRecording ? "Stop Recording" : "Start Recording"}
+                >
+                  {isRecording ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+                </Button>
+
+                {/* Send audio button (only show when audio is recorded) */}
+                {audioBlob && (
+                  <Button
+                    size="lg"
+                    onClick={sendAudioToServer}
+                    className="bg-green-600 hover:bg-green-700 text-white px-4 h-[56px] flex items-center justify-center hover-scale"
+                    title="Send Audio"
+                  >
+                    🎤
+                  </Button>
+                )}
+
                 <Button
                 onClick={async ()=>{
                   return await performShareDoc()
@@ -550,7 +761,7 @@ export function Dashboard() {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
               <DropdownMenuItem className="text-comfortable py-3">
-                👤 My Account
+                {data ? data.name?.toUpperCase() : "👤 My Account" }
               </DropdownMenuItem>
               <DropdownMenuItem
                 className="text-comfortable py-3 cursor-pointer flex items-center gap-2"

@@ -6,6 +6,9 @@ import { sarvam } from 'sarvam-ai-sdk';
 import { experimental_transcribe as transcribe } from "ai";
 import { readFile } from "fs/promises";
 import { join } from "path";
+import { writeFile } from "fs/promises";
+import { tmpdir } from "os";
+import { randomUUID } from "crypto";
 
 import { streamText } from "ai";
 import { aiStreamReqZodSchema } from "../zodSchemas/ai";
@@ -33,6 +36,42 @@ const aiRoutes = new Hono()
         } catch (err) {
             console.log("Error:", err);
             return c.json({ error: "Failed to generate ideas" }, 500);
+        }
+    })
+    .post('/audio-transcribe', async (c) => {
+        try {
+            const formData = await c.req.formData();
+            const audioFile = formData.get('audio') as File;
+            
+            if (!audioFile) {
+                return c.json({ error: "No audio file provided" }, 400);
+            }
+
+            // Convert File to Buffer
+            const arrayBuffer = await audioFile.arrayBuffer();
+            const buffer = Buffer.from(arrayBuffer);
+
+            // Save to temporary file
+            const tempFilePath = join(tmpdir(), `${randomUUID()}.wav`);
+            await writeFile(tempFilePath, buffer);
+
+            const result = await transcribe({
+                model: sarvam.speechTranslation("saaras:v2"),
+                audio: await readFile(tempFilePath),
+            });
+
+            // Clean up temporary file
+            try {
+                await readFile(tempFilePath); // Check if file exists
+                await writeFile(tempFilePath, ''); // Clear file
+            } catch (e) {
+                // File might already be deleted, ignore
+            }
+
+            return c.json({ text: result.text });
+        } catch (err) {
+            console.log("Error transcribing audio:", err);
+            return c.json({ error: "Failed to transcribe audio" }, 500);
         }
     })
     .post('/audio-transalate',async(c)=>{
