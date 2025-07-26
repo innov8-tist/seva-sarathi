@@ -1,4 +1,4 @@
-import { text, pgTable, uuid, pgEnum } from 'drizzle-orm/pg-core';
+import { text, pgTable, uuid, pgEnum, json } from 'drizzle-orm/pg-core';
 import { createInsertSchema, createSelectSchema } from 'drizzle-zod';
 import {z} from 'zod'
 
@@ -12,7 +12,7 @@ export const userTable = pgTable('users', {
   pwd: text('pwd'),
   provider: pg_provider('provider').notNull(),
   accessToken: text('access_token'),
-  refreshToken: text('refresh_token'),
+  refreshToken: json('refresh_token'),
   providerid: text('p_id').notNull(),
   email: text('email'),
   pfp: text('pfp'),
