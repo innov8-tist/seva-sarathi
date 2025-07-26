@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/dialog";
 
 import { createFileRoute } from '@tanstack/react-router'
+import { Label } from "@radix-ui/react-label";
 
 export const Route = createFileRoute('/dashboard')({
   component: Dashboard,
@@ -49,7 +50,7 @@ export function Dashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [activeSection, setActiveSection] = useState<Section>("form-filler");
   const [chatMessage, setChatMessage] = useState("");
-  const [eligibilityDialog, setEligibilityDialog] = useState<{ open: boolean, scheme: string, eligible: boolean } | null>(null);
+  const [eligibilityDialog, setEligibilityDialog] = useState<{ open: boolean, scheme: string, available_info: string[], missing_info: string[] } | null>(null);
   const [fontSize, setFontSize] = useState("normal");
   const [selectedShareButtons, setSelectedShareButtons] = useState<string[]>([]);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -62,6 +63,7 @@ export function Dashboard() {
 
   // Audio recording states
   const [isRecording, setIsRecording] = useState(false);
+  const [isCheckingEligibility, setIsCheckingEligibility] = useState<string | null>(null);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -246,8 +248,25 @@ export function Dashboard() {
     }
 
   }
-
-  // Audio recording functions
+  const checkEligibility = async (title: string) => {
+    setIsCheckingEligibility(title);
+    try {
+      let data = await fetch(`${PY_SERVER_URL}/government-schemes-single?query=${title}`)
+      let res = await data.json()
+      let {available_info,missing_info } = res?.result      
+      
+      setEligibilityDialog({ 
+        open: true, 
+        scheme: title, 
+        available_info, 
+        missing_info 
+      });
+    } catch (error) {
+      console.error('Error checking eligibility:', error);
+    } finally {
+      setIsCheckingEligibility(null);
+    }
+  }
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -371,7 +390,17 @@ export function Dashboard() {
           },
         ];
         const tryAIAutoCompletionOnTemplateClick = async (template: any) =>{
-          
+          console.log(template)
+          let reqData = template.inputs.map((o : any)=>o.fieldName)
+          let data = await fetch(`${PY_SERVER_URL}/aisuggest`,{
+            method:'POST',
+            body: JSON.stringify({
+              inputs: reqData
+            })
+          })
+
+          let res = await data.json()
+          console.log(res)
         }
 
 
@@ -382,6 +411,7 @@ export function Dashboard() {
               initialValues[input.fieldName] = "";
             });
           }
+          tryAIAutoCompletionOnTemplateClick(template)
           setTemplateFieldValues(initialValues);
         };
 
@@ -400,12 +430,7 @@ export function Dashboard() {
           }
         };
 
-        const checkEligibility = async (title:string) =>{
-          let data = await fetch(`${PY_SERVER_URL}/government-schemes-single?query=${title}`)
-          let res = await data.json()
-
-          console.log(res)
-        }
+       
 
 
         return (
@@ -580,7 +605,6 @@ export function Dashboard() {
                   className="flex-1 h-[56px] text-comfortable resize-none border-border text-lg p-4"
                 />
 
-                {/* Microphone button */}
                 <Button
                   size="lg"
                   variant="outline"
@@ -663,13 +687,20 @@ export function Dashboard() {
                     <span className="text-base text-muted-foreground mb-4">{scheme.desc}</span>
                     <Button
                       variant="outline"
-                      onClick={ async() => {
-                        await checkEligibility(scheme.title)
-                        // setEligibilityDialog({ open: true, scheme: scheme.title, eligible });
+                      onClick={async () => {
+                        await checkEligibility(scheme.title);
                       }}
-                      className="text-comfortable px-8 py-3 border-primary text-primary hover:bg-primary hover:text-primary-foreground hover-scale text-lg mt-auto"
+                      disabled={isCheckingEligibility === scheme.title}
+                      className={`text-comfortable px-8 py-3 border-primary text-primary hover:bg-primary hover:text-primary-foreground hover-scale text-lg mt-auto disabled:opacity-50 disabled:cursor-not-allowed`}
                     >
-                      Check Eligibility
+                      {isCheckingEligibility === scheme.title ? (
+                        <div className="flex items-center gap-2">
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+                          Checking...
+                        </div>
+                      ) : (
+                        "Check Eligibility"
+                      )}
                     </Button>
                   </div>
                 ))}
@@ -883,44 +914,32 @@ export function Dashboard() {
 
       {/* Eligibility Dialog */}
       <Dialog open={eligibilityDialog?.open || false} onOpenChange={() => setEligibilityDialog(null)}>
-        <DialogContent className={`max-w-2xl ${eligibilityDialog?.eligible ? 'border-green-500 border-2' : 'border-red-500 border-2'} animate-scale-in`}>
+        <DialogContent className="max-w-2xl border-2 border-blue-500 animate-scale-in">
           <DialogHeader className="text-center">
-            <div className={`px-4 py-2 rounded-lg mb-4 ${eligibilityDialog?.eligible ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+            <div className="px-4 py-2 rounded-lg mb-4 bg-blue-100 text-blue-800">
               <DialogTitle className="text-2xl font-bold">
-                {eligibilityDialog?.eligible ? '✅ You are Eligible!' : '❌ Not Eligible'}
+                📋 Document Status
               </DialogTitle>
             </div>
             <DialogDescription className="text-lg text-left">
               <div className="space-y-4">
                 <h3 className="text-xl font-semibold text-foreground">{eligibilityDialog?.scheme}</h3>
 
-                {eligibilityDialog?.eligible ? (
-                  <div className="space-y-3">
-                    <p className="text-green-700">🎉 Congratulations! You meet all the requirements for this scheme.</p>
-                    <div className="bg-green-50 p-4 rounded-lg">
-                      <h4 className="font-semibold text-green-800 mb-2">Next Steps:</h4>
-                      <ul className="list-disc list-inside space-y-1 text-green-700">
-                        <li>Gather required documents</li>
-                        <li>Visit nearest government office</li>
-                        <li>Submit application form</li>
-                        <li>Track application status online</li>
-                      </ul>
-                    </div>
+                <div className="space-y-4">
+                  <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                    <h4 className="font-semibold text-green-800 mb-2">✅ Available Documents:</h4>
+                    <p className="text-green-700">
+                      {eligibilityDialog?.available_info?.join(', ') || 'No documents available'}
+                    </p>
                   </div>
-                ) : (
-                  <div className="space-y-3">
-                    <p className="text-red-700">Unfortunately, you don't meet the current eligibility criteria.</p>
-                    <div className="bg-red-50 p-4 rounded-lg">
-                      <h4 className="font-semibold text-red-800 mb-2">Common Requirements:</h4>
-                      <ul className="list-disc list-inside space-y-1 text-red-700">
-                        <li>Age requirements (varies by scheme)</li>
-                        <li>Income criteria</li>
-                        <li>Residence proof</li>
-                        <li>Document verification</li>
-                      </ul>
-                    </div>
+                  
+                  <div className="bg-red-50 p-4 rounded-lg border border-red-200">
+                    <h4 className="font-semibold text-red-800 mb-2">❌ Missing Documents:</h4>
+                    <p className="text-red-700">
+                      {eligibilityDialog?.missing_info?.join(', ') || 'No missing documents'}
+                    </p>
                   </div>
-                )}
+                </div>
               </div>
             </DialogDescription>
           </DialogHeader>
