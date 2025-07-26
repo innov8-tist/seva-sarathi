@@ -37,8 +37,8 @@ async def McpServers(datas:MYCOLL):
     user_id=datas.user_id
     collected_info=DBDATAS(user_id)
 
-    await Run_Agent(query=question,arr=[collected_info])
-    return {"result":"done"}
+    res=await Run_Agent(query=question,arr=[collected_info])
+    return {"result":res}
     
 os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
 
