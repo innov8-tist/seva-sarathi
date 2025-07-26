@@ -30,8 +30,8 @@ type ChatMessage = {
   content: string;
 };
 type DocumentData = {
-  filename:string,
-  download_url:string
+  filename: string,
+  download_url: string
 }
 
 type GovntSchmes = {
@@ -56,7 +56,9 @@ export function Dashboard() {
   const [isRagMode, setIsRagMode] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
   const [documents, setDocuments] = useState<DocumentData[]>([])
-  const [schemes,setSchemes] = useState<GovntSchmes[]>([])
+  const [schemes, setSchemes] = useState<GovntSchmes[]>([])
+  const [selectedTemplate, setSelectedTemplate] = useState<any | null>(null);
+  const [templateFieldValues, setTemplateFieldValues] = useState<{ [key: string]: string }>({});
 
   // Audio recording states
   const [isRecording, setIsRecording] = useState(false);
@@ -73,34 +75,34 @@ export function Dashboard() {
   ];
 
 
-  useEffect(()=>{
+  useEffect(() => {
     setChatMessages([])
 
-    if(activeSection == "my-documents"){
+    if (activeSection == "my-documents") {
       fetchMyDocuments()
-    }else if(activeSection == "schemes"){
+    } else if (activeSection == "schemes") {
       fetchSchemes()
     }
-  },[activeSection])
+  }, [activeSection])
 
-  const fetchMyDocuments = async () =>{
-    try{
+  const fetchMyDocuments = async () => {
+    try {
       let response = await fetch(`${PY_SERVER_URL}/list-files`)
       let data = await response.json()
 
       setDocuments(data)
-    }catch(err){
-      console.error(`Error occured `,err)
+    } catch (err) {
+      console.error(`Error occured `, err)
     }
   }
 
-  const fetchSchemes = async () =>{
-    try{
+  const fetchSchemes = async () => {
+    try {
       let response = await fetch(`${PY_SERVER_URL}/government-schemes`)
       let data = await response.json()
       setSchemes(data?.result)
-    }catch(err){
-      console.error(`Error occured `,err)
+    } catch (err) {
+      console.error(`Error occured `, err)
     }
   }
 
@@ -222,7 +224,7 @@ export function Dashboard() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin':"*"
+          'Access-Control-Allow-Origin': "*"
         },
         body: JSON.stringify({
           query: chatMessage,
@@ -252,7 +254,7 @@ export function Dashboard() {
       const mediaRecorder = new MediaRecorder(stream, {
         mimeType: 'audio/webm'
       });
-      
+
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
 
@@ -305,8 +307,8 @@ export function Dashboard() {
 
       const result = await response.json();
       const transcribedText = result.text || "Could not transcribe audio";
-      
-      setChatMessage(transcribedText);      
+
+      setChatMessage(transcribedText);
       setAudioBlob(null);
     } catch (error) {
       console.error('Error sending audio:', error);
@@ -322,24 +324,89 @@ export function Dashboard() {
     switch (activeSection) {
 
       case "form-filler":
-        // Unique template values
         const templates = [
-          { id: 1, label: "h1", value: "Passport Application" },
-          { id: 2, label: "h1", value: "Train Ticket Booking" },
-          { id: 3, label: "h1", value: "Pension Form" },
+          {
+            id: 1,
+            imgUri:"https://img.etimg.com/thumb/width-1200,height-900,imgsize-39456,resizemode-75,msid-122059799/markets/stocks/news/irctc-shares-in-focus-as-indian-railways-to-hike-passenger-fares-from-july-1.jpg",
+            label: "IRCTC Train Search",
+            value: {
+              "template_name": "IRCTC Train Search",
+              "inputs": [
+                {
+                  "fieldName": "From Station",
+                  "fieldType": "string"
+                },
+                {
+                  "fieldName": "To Station",
+                  "fieldType": "string"
+                },
+                {
+                  "fieldName": "Journey Date",
+                  "fieldType": "date"
+                },
+                {
+                  "fieldName": "Class",
+                  "fieldType": "string"
+                },
+                {
+                  "fieldName": "Quota",
+                  "fieldType": "string"
+                }
+              ]
+            }
+          },
+          {
+            id: 3,
+            label: "Pension Form",
+            imgUri:"https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcStmLIqxUgbvvcyy5CyEzVCStJQmPWk0ZwiYg&s",
+            value: {
+              "template_name": "Pension Form",
+              "inputs": [
+                { "fieldName": "Name", "fieldType": "string" },
+                { "fieldName": "DOB", "fieldType": "date" },
+                { "fieldName": "Aadhaar Number", "fieldType": "string" },
+                { "fieldName": "Bank Account", "fieldType": "string" }
+              ]
+            }
+          },
         ];
+        const tryAIAutoCompletionOnTemplateClick = async (template: any) =>{
+          
+        }
 
-        // Handler for template click
-        const handleTemplateClick = (value: string) => {
-          setChatMessage(value);
+
+        const handleTemplateClick = (template: any) => {
+          setSelectedTemplate(template); const initialValues: { [key: string]: string } = {};
+          if (template && template.inputs) {
+            template.inputs.forEach((input: any) => {
+              initialValues[input.fieldName] = "";
+            });
+          }
+          setTemplateFieldValues(initialValues);
         };
 
-        // Handler for send button
+        const handleFieldChange = (fieldName: string, value: string) => {
+          setTemplateFieldValues((prev) => ({ ...prev, [fieldName]: value }));
+        };
+
         const handleSend = () => {
-          // Run your code here (e.g., send chatMessage to backend)
-          console.log("Submitted:", chatMessage);
-          // Optionally clear input: setChatMessage("");
+          if (selectedTemplate && selectedTemplate.inputs) {
+            const filled = selectedTemplate.inputs.map((input: any) => `${input.fieldName}: ${templateFieldValues[input.fieldName] || ""}`).join("\n");
+            setChatMessage(filled);
+            setSelectedTemplate(null);
+            setTemplateFieldValues({});
+          } else {
+            console.log("Submitted:", chatMessage);
+          }
         };
+
+        const checkEligibility = async (title:string) =>{
+          let data = await fetch(`${PY_SERVER_URL}/government-schemes-single?query=${title}`)
+          let res = await data.json()
+
+          console.log(res)
+        }
+
 
         return (
           <div className="h-full flex flex-col animate-fade-in">
@@ -347,28 +414,51 @@ export function Dashboard() {
               <h2 className="text-3xl font-bold text-foreground">Form Filler</h2>
             </div>
             <div className="flex flex-1 gap-8">
-              {/* Sidebar (already handled in main layout) */}
-              {/* Main Content */}
               <div className="flex-1 flex flex-col gap-8">
-                {/* Large Textarea with Send Button */}
                 <Card className="p-8 bg-card border border-border rounded-lg flex flex-col min-h-[220px] justify-center">
                   <div className="relative w-full">
-                    <Textarea
-                      placeholder="Type here... e.g., 'help me get a passport' or 'help me book a ticket from Delhi to Mumbai'"
-                      value={chatMessage}
-                      onChange={(e) => setChatMessage(e.target.value)}
-                      className="w-full h-[150px] text-comfortable resize-none border-border text-lg p-4 bg-background pr-16"
-                    />
-                    <Button
-                      size="lg"
-                      className="absolute right-4 bottom-4 bg-primary hover:bg-primary-dark text-primary-foreground px-6 h-[44px] flex items-center justify-center hover-scale"
-                      onClick={handleSend}
-                    >
-                      <Send className="w-5 h-5" />
-                    </Button>
+                    {selectedTemplate && selectedTemplate.inputs ? (
+                      <div className="space-y-4">
+                        <div className="mb-4 text-lg font-semibold">{selectedTemplate.template_name}</div>
+                        {selectedTemplate.inputs.map((input: any, idx: number) => (
+                          <div key={idx} className="flex flex-col gap-1">
+                            <label className="font-medium text-foreground">{input.fieldName}</label>
+                            <input
+                              type={input.fieldType === "date" ? "date" : "text"}
+                              value={templateFieldValues[input.fieldName] || ""}
+                              onChange={e => handleFieldChange(input.fieldName, e.target.value)}
+                              className="border border-border rounded px-3 py-2 text-lg bg-background"
+                            />
+                          </div>
+                        ))}
+                        <Button
+                          size="lg"
+                          className="mt-4 bg-primary hover:bg-primary-dark text-primary-foreground px-6 h-[44px] flex items-center justify-center hover-scale"
+                          onClick={handleSend}
+                        >
+                          <Send className="w-5 h-5" />
+                          <span className="ml-2">Fill to Textarea</span>
+                        </Button>
+                      </div>
+                    ) : (
+                      <>
+                        <Textarea
+                          placeholder="Type here... e.g., 'help me get a passport' or 'help me book a ticket from Delhi to Mumbai'"
+                          value={chatMessage}
+                          onChange={(e) => setChatMessage(e.target.value)}
+                          className="w-full h-[150px] text-comfortable resize-none border-border text-lg p-4 bg-background pr-16"
+                        />
+                        <Button
+                          size="lg"
+                          className="absolute right-4 bottom-4 bg-primary hover:bg-primary-dark text-primary-foreground px-6 h-[44px] flex items-center justify-center hover-scale"
+                          onClick={handleSend}
+                        >
+                          <Send className="w-5 h-5" />
+                        </Button>
+                      </>
+                    )}
                   </div>
                 </Card>
-                {/* Template Section */}
                 <div>
                   <h3 className="text-xl font-semibold text-foreground mb-4">Template</h3>
                   <div className="flex gap-12">
@@ -378,7 +468,11 @@ export function Dashboard() {
                         className="w-64 h-64 flex flex-col items-center justify-center bg-card border border-border rounded-lg cursor-pointer transition hover:shadow-lg"
                         onClick={() => handleTemplateClick(tpl.value)}
                       >
-                        <div className="w-48 h-48 bg-secondary rounded mb-2" />
+                        <img
+                          src={tpl.imgUri}
+                          alt={tpl.label}
+                          className="w-48 h-48 object-cover rounded mb-2"
+                        />
                         <div className="text-lg font-bold text-foreground">{tpl.label}</div>
                       </Card>
                     ))}
@@ -403,9 +497,9 @@ export function Dashboard() {
               <div className="grid gap-8 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 2xl:grid-cols-6 auto-rows-fr pb-12">
                 {documents.map((doc, index) => (
                   <div key={index} className="relative hover-scale">
-                    <div 
-                    onClick={()=>handleDocumentDownload(doc.filename)}
-                    className="bg-secondary border border-border rounded-lg p-6 h-40 flex items-center justify-center transition-all duration-200 hover:shadow-lg">
+                    <div
+                      onClick={() => handleDocumentDownload(doc.filename)}
+                      className="bg-secondary border border-border rounded-lg p-6 h-40 flex items-center justify-center transition-all duration-200 hover:shadow-lg">
                       <span className="text-2xl text-muted-foreground">📄</span>
                     </div>
                     <button
@@ -491,11 +585,10 @@ export function Dashboard() {
                   size="lg"
                   variant="outline"
                   onClick={isRecording ? stopRecording : startRecording}
-                  className={`h-[56px] px-4 border-2 transition-all duration-200 hover-scale ${
-                    isRecording 
-                      ? 'bg-red-600 text-white border-red-600 hover:bg-red-700' 
+                  className={`h-[56px] px-4 border-2 transition-all duration-200 hover-scale ${isRecording
+                      ? 'bg-red-600 text-white border-red-600 hover:bg-red-700'
                       : 'border-gray-300 text-gray-700 hover:bg-gray-50'
-                  }`}
+                    }`}
                   title={isRecording ? "Stop Recording" : "Start Recording"}
                 >
                   {isRecording ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
@@ -519,8 +612,8 @@ export function Dashboard() {
                   variant="outline"
                   onClick={() => setIsRagMode(!isRagMode)}
                   className={`h-[56px] px-4 border-2 transition-all duration-200 hover-scale ${isRagMode
-                      ? 'bg-blue-600 text-white border-blue-600 hover:bg-blue-700'
-                      : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                    ? 'bg-blue-600 text-white border-blue-600 hover:bg-blue-700'
+                    : 'border-gray-300 text-gray-700 hover:bg-gray-50'
                     }`}
                   title={isRagMode ? "Switch to Normal AI" : "Switch to RAG AI"}
                 >
@@ -544,8 +637,8 @@ export function Dashboard() {
               {/* Mode indicator */}
               <div className="mt-2 text-center">
                 <span className={`text-sm px-3 py-1 rounded-full ${isRagMode
-                    ? 'bg-blue-100 text-blue-800'
-                    : 'bg-gray-100 text-gray-800'
+                  ? 'bg-blue-100 text-blue-800'
+                  : 'bg-gray-100 text-gray-800'
                   }`}>
                   {isRagMode ? "🔍 RAG Mode (Document-aware)" : "🤖 Normal AI Mode"}
                 </span>
@@ -570,9 +663,9 @@ export function Dashboard() {
                     <span className="text-base text-muted-foreground mb-4">{scheme.desc}</span>
                     <Button
                       variant="outline"
-                      onClick={() => {
-                        const eligible = Math.random() > 0.5;
-                        setEligibilityDialog({ open: true, scheme:scheme.title, eligible });
+                      onClick={ async() => {
+                        await checkEligibility(scheme.title)
+                        // setEligibilityDialog({ open: true, scheme: scheme.title, eligible });
                       }}
                       className="text-comfortable px-8 py-3 border-primary text-primary hover:bg-primary hover:text-primary-foreground hover-scale text-lg mt-auto"
                     >
@@ -665,11 +758,10 @@ export function Dashboard() {
                   size="lg"
                   variant="outline"
                   onClick={isRecording ? stopRecording : startRecording}
-                  className={`h-[56px] px-4 border-2 transition-all duration-200 hover-scale ${
-                    isRecording 
-                      ? 'bg-red-600 text-white border-red-600 hover:bg-red-700' 
+                  className={`h-[56px] px-4 border-2 transition-all duration-200 hover-scale ${isRecording
+                      ? 'bg-red-600 text-white border-red-600 hover:bg-red-700'
                       : 'border-gray-300 text-gray-700 hover:bg-gray-50'
-                  }`}
+                    }`}
                   title={isRecording ? "Stop Recording" : "Start Recording"}
                 >
                   {isRecording ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
@@ -688,9 +780,9 @@ export function Dashboard() {
                 )}
 
                 <Button
-                onClick={async ()=>{
-                  return await performShareDoc()
-                }}
+                  onClick={async () => {
+                    return await performShareDoc()
+                  }}
                   size="lg"
                   className="bg-primary hover:bg-primary-dark text-primary-foreground px-8 h-[56px] flex items-center justify-center hover-scale"
                 >
@@ -761,7 +853,7 @@ export function Dashboard() {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
               <DropdownMenuItem className="text-comfortable py-3">
-                {data ? data.name?.toUpperCase() : "👤 My Account" }
+                {data ? data.name?.toUpperCase() : "👤 My Account"}
               </DropdownMenuItem>
               <DropdownMenuItem
                 className="text-comfortable py-3 cursor-pointer flex items-center gap-2"
