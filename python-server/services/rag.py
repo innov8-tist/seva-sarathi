@@ -36,25 +36,22 @@ def Rag_Calling(final_retriver):
 def load_and_process_data_pdf():
     try:
         #texts=text
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        pdf_path = os.path.join(current_dir, "Manu_Madhu.pdf")
-
-        # Optional: print for debug
-        print("Resolved PDF path:", pdf_path)
-
-        # Confirm the file exists
-        if not os.path.isfile(pdf_path):
-            raise FileNotFoundError(f"PDF file not found at: {pdf_path}")
-        loader = PyPDFLoader(pdf_path)
-        texts=loader.load()
-        cleaned_docs=[]
-        for i, doc in enumerate(texts):
-            new_metadata = {
-                'source': doc.metadata.get('source', 'Manu_Madhu.pdf'),
-                'page': doc.metadata.get('page', 0) + 1
-            }
-            cleaned_doc = Document(page_content=doc.page_content, metadata=new_metadata)
-            cleaned_docs.append(cleaned_doc)
+        cleaned_docs = []
+        DOWNLOAD_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "download")
+        for file_name in os.listdir(DOWNLOAD_DIR):
+            if file_name.endswith(".pdf"):
+                file_path = os.path.join(DOWNLOAD_DIR, file_name)
+                if os.path.isfile(file_path):
+                    loader = PyPDFLoader(file_path)
+                    texts = loader.load()
+                    print(texts)
+            for i, doc in enumerate(texts):
+                new_metadata = {
+                    'source': doc.metadata.get('source', file_name),
+                    'page': doc.metadata.get('page', 0) + 1
+                }
+                cleaned_doc = Document(page_content=doc.page_content, metadata=new_metadata)
+                cleaned_docs.append(cleaned_doc)
         chunking = RecursiveCharacterTextSplitter(chunk_size=200, chunk_overlap=30)
         chunks = chunking.split_documents(cleaned_docs)
         db = FAISS.from_documents(chunks, GoogleGenerativeAIEmbeddings(google_api_key=GEMINI_API, model="models/embedding-001"))

@@ -1,6 +1,6 @@
 from fastapi import FastAPI,Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, HTMLResponse
+from fastapi.responses import JSONResponse, HTMLResponse,FileResponse
 from google_auth_oauthlib.flow import Flow
 import pathlib
 import os
@@ -10,7 +10,8 @@ from services.rag import PDFRAG
 from services.db import DBDATAS,DBDATAS2
 from services.mcps import Run_Agent
 import json
-
+from services.drive import Download_Function
+from services.government import SchemsShowing
 user_id=None
 app = FastAPI()
 
@@ -95,5 +96,33 @@ async def oauth2callback(request: Request):
       </body>
     </html>
     """)
+
+DOWNLOAD_DIR="services/download"
+@app.get("/list-files")
+def list_files():
+    Download_Function()
+    if not os.path.exists(DOWNLOAD_DIR):
+        return JSONResponse(status_code=404, content={"message": "Download directory not found"})
+
+    files = os.listdir(DOWNLOAD_DIR)
+    file_data = [
+        {
+            "filename": filename,
+            "download_url": f"/download/{filename}"
+        }
+        for filename in files if os.path.isfile(os.path.join(DOWNLOAD_DIR, filename))
+    ]
+    return file_data
+
+@app.get("/download/{filename}")
+def download_file(filename: str):
+    file_path = os.path.join(DOWNLOAD_DIR, filename)
+    if os.path.exists(file_path):
+        return FileResponse(file_path, filename=filename)
+    return JSONResponse(status_code=404, content={"message": "File not found"})
+@app.get("/government-schemes")
+def SchemsShow():
+    res=SchemsShowing()
+    return {"result":res}
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
